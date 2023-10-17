@@ -1,14 +1,20 @@
-def impartire(numarator, numitor, nr_zecimale=100):
-    result = ""
-    rest = numarator
+def lists(list_1, list_2):
+    intersection = []
+    reunion = []
+    dif1 = []
+    dif2 = []
 
-    for _ in range(nr_zecimale + 1):
-        cat, rest = divmod(rest * 10, numitor)
-        result += str(cat)
-        if _ == 0:
-            result += "."
-    return result
+    intersection.append(list_1)
+    intersection.append(list_2)
+    for i in range(0, len(intersection)):
+        for j in range(i + 1, len(intersection)):
+            if (intersection[i] == intersection[j]):
+                intersection.remove(intersection[i])
+            print(f"i[{i}]:{intersection[i]}, i[{j}]:{intersection[j]}")
 
-numarator = 1
-numitor = 7
-print(impartire(numarator, numitor))
+    return intersection
+
+
+list_1 = [1, 2, 3, 4, 5, 6]
+list_2 = [6, 7, 8, 9, 10, 11]
+print(f"Intersectia numerelor: {lists(list_1, list_2)}")

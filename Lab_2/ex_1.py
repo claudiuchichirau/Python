@@ -1,12 +1,9 @@
-def generare_cod_ascii(caracter_initial, nr_elemente):
-    input = [n for n in range(ord(caracter_initial), ord(caracter_initial) + nr_elemente)]
+def fibonacci(n):
+    sir = [0, 1]
+    for i in range(2, n):
+        element = sir[i-1] + sir[i-2]
+        sir.append(element)
+    return sir
 
-    # convertesc codurile ASCII în formatul hex
-    result = " ".join(hex(n)[2:] for n in input)
-
-    return result
-
-
-print(generare_cod_ascii('0', 10))
-print(generare_cod_ascii('a', 16))
-
+n = 13
+print(f"Primele {n} numere din sirul fibonacci sunt: {fibonacci(n)}")

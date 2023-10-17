@@ -4,6 +4,5 @@ def suma_nr(n):
         suma= suma+ i
     return suma
 
-# Testează funcția
 n = 7
 print(f"Suma primelor {n} numere este {suma_nr(n)}")
