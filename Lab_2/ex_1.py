@@ -1,3 +1,5 @@
+# Write a function to return a list of the first n numbers in the Fibonacci string
+
 def fibonacci(n):
     sir = [0, 1]
     for i in range(2, n):
