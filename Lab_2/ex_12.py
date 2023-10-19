@@ -14,7 +14,6 @@ def group_by_rhyme(words):
     grouped_words = list(rhymes.values())
     return grouped_words
 
-# Example usage:
 words = ['ana', 'banana', 'carte', 'arme', 'parte']
 rhyme_groups = group_by_rhyme(words)
 print(rhyme_groups)

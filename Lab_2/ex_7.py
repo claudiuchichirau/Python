@@ -17,7 +17,6 @@ def find_palindromes(numbers):
 
     return (palindrome_count, greatest_palindrome)
 
-# Example usage:
 numbers = [121, 123, 1331, 12321, 9009, 1001, 12345]
 result = find_palindromes(numbers)
 

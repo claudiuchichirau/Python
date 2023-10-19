@@ -4,7 +4,6 @@
 
 def lists(*lists):
     result = []
-    # Find the minimum length of the input lists
     min_length = min(len(lst) for lst in lists)
 
     for i in range(min_length):

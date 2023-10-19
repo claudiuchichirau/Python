@@ -10,7 +10,6 @@ def find_items_appearing_x_times(x, *lists):
 
     result = []
 
-    # Parcurgeți dicționarul item_count și adăugați elementele care apar de x ori în lista result
     for item, count in item_count.items():
         if count == x:
             result.append(item)
