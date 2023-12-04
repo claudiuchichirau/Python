@@ -58,4 +58,4 @@ def authenticate_user():
         else:
             return jsonify({'message': 'Invalid credentials'}), 401
     else:
-        return jsonify({'message': 'User not found'}), 404
+        return jsonify({'message': 'Invalid credentials'}), 404

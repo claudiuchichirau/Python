@@ -1,5 +1,7 @@
+import json
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox, QDesktopWidget
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtCore import pyqtSignal, Qt, QUrl, QByteArray
+from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
 class LoginWindow(QWidget):
     showRegistrationWindow = pyqtSignal()
@@ -43,10 +45,38 @@ class LoginWindow(QWidget):
 
         if not username or not password:
             QMessageBox.critical(self, "Eroare", "Ambele câmpuri trebuie completate")
-        elif not password:
-            QMessageBox.critical(self, "Eroare", "Parola nu poate fi goală")
         else:
-            QMessageBox.information(self, "Succes", "Autentificare reușită")
+            # Creează un manager de acces la rețea
+            network_manager = QNetworkAccessManager(self)
+            
+            # Construiește URL-ul pentru autentificare
+            url = QUrl("http://localhost:5000/authenticate_user")
+            
+            # Construiește cererea
+            request = QNetworkRequest(url)
+            request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
+            
+            # Construiește datele JSON pentru autentificare
+            data = {"username": username, "password": password}
+            
+            # Creează și trimite cererea POST
+            reply = network_manager.post(request, QByteArray(json.dumps(data).encode('utf-8')))
+            
+            # Conectează slot-ul de răspuns la cerere
+            reply.finished.connect(self.handle_authentication_response)
+
+            # QMessageBox.information(self, "Succes", "Autentificare reușită")
+    
+    def handle_authentication_response(self):
+        reply = self.sender()
+        response_data = json.loads(reply.readAll().data().decode('utf-8'))
+        message = response_data.get('message', '')
+
+        if message == "User authenticated successfully":
+            QMessageBox.information(self, "Succes", message)
+        else:
+            QMessageBox.information(self, "Eroare", message)
+
 
     def show_registration_window(self):
         self.showRegistrationWindow.emit()
