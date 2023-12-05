@@ -5,6 +5,7 @@ from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkRepl
 
 class LoginWindow(QWidget):
     showRegistrationWindow = pyqtSignal()
+    showHomeWindow = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -72,6 +73,9 @@ class LoginWindow(QWidget):
 
         if message == "User authenticated successfully":
             QMessageBox.information(self, "Succes", message)
+
+            self.showHomeWindow.emit()
+            self.hide()
         else:
             QMessageBox.critical(self, "Error", message)
 
@@ -171,6 +175,40 @@ class RegistrationWindow(QWidget):
         self.showLoginWindow.emit()
         self.hide()
 
+class HomeWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        # Setează dimensiunile dorite pentru fereastră
+        window_width = 600
+        window_height = 700
+        self.resize(window_width, window_height)
+
+        self.setWindowTitle("QuickChat - Home")
+        self.layout = QVBoxLayout()
+
+        # Adaugă textul și câmpul pentru introducerea numelui de utilizator
+        label_welcome = QLabel("Open / Start a new conversation right now!")
+        label_enter_username = QLabel("Enter the username of the person you want to chat with")
+        self.entry_username = QLineEdit()
+
+        # Adaugă butonul pentru deschiderea conversației
+        button_open_conversation = QPushButton("Open Conversation")
+        button_open_conversation.clicked.connect(self.open_conversation)
+
+        # Adaugă elementele în layout
+        self.layout.addWidget(label_welcome)
+        self.layout.addWidget(label_enter_username)
+        self.layout.addWidget(self.entry_username)
+        self.layout.addWidget(button_open_conversation)
+
+        self.setLayout(self.layout)
+    
+    def open_conversation(self):
+        # Aici poți adăuga logica pentru deschiderea unei noi conversații
+        # Poți accesa username-ul introdus de utilizator folosind self.entry_username.text()
+        QMessageBox.information(self, "Info", "Conversation opened with {}".format(self.entry_username.text()))
+
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()
 
@@ -184,9 +222,11 @@ def start_application():
     app = QApplication([])
     login_window = LoginWindow()
     registration_window = RegistrationWindow()
+    home_window = HomeWindow()
 
     # Conectați semnalul din fereastra de autentificare la slotul pentru afișarea fereastra de înregistrare
     login_window.showRegistrationWindow.connect(registration_window.show)
+    login_window.showHomeWindow.connect(home_window.show)
     registration_window.showLoginWindow.connect(login_window.show)
 
     login_window.show()
