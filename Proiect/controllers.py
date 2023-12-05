@@ -9,11 +9,11 @@ def create_user():
 
     # Validări
     if Users.query.filter_by(username=data['username']).first():
-        return jsonify({'message': 'Username already exists'}), 400
+        return jsonify({'message': 'An account with this username already exists.'}), 400
 
     password = data['password']
     if len(password) < 8 or not any(char.isdigit() for char in password) or not any(char.islower() for char in password):
-        return jsonify({'message': 'Password must be at least 8 characters long and contain at least one digit and one lowercase letter'}), 400
+        return jsonify({'message': 'Password must be at least 8 characters long and contain at least one digit and one lowercase letter.'}), 400
 
     # Generare salt și criptare parolă
     salt = secrets.token_hex(16)  # Generare salt
@@ -30,10 +30,10 @@ def create_user():
     try:
         db.session.add(new_user)
         db.session.commit()
-        return jsonify({'message': 'User created successfully'}), 201
+        return jsonify({'message': 'User created successfully!'}), 201
     except IntegrityError:
         db.session.rollback()
-        return jsonify({'message': 'Username already exists'}), 400
+        return jsonify({'message': 'Username already exists.'}), 400
 
 def authenticate_user():
     from server.server import db, app, Users, Password
