@@ -3,86 +3,103 @@ from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButto
 from PyQt5.QtCore import pyqtSignal, Qt, QUrl, QByteArray
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
-class LoginWindow(QWidget):
-    showRegistrationWindow = pyqtSignal()
-    showHomeWindow = pyqtSignal()
+import pygame
+from pygame.locals import *
 
+class LoginWindow:
     def __init__(self):
-        super().__init__()
+        pygame.init()
 
         # Setează dimensiunile dorite pentru fereastră
         window_width = 600
         window_height = 700
-        self.resize(window_width, window_height)
+        self.screen = pygame.display.set_mode((window_width, window_height))
+        pygame.display.set_caption("QuickChat - Login")
 
-        self.setWindowTitle("QuickChat - Login")
-        self.layout = QVBoxLayout()
+        self.clock = pygame.time.Clock()
 
-        self.label_username = QLabel("Username:")
-        self.entry_username = QLineEdit()
+        self.font = pygame.font.Font('./ui/fonts/BlanksscriptpersonaluseBdit-jEM6O', 36)
 
-        self.label_password = QLabel("Password:")
-        self.entry_password = QLineEdit()
-        self.entry_password.setEchoMode(QLineEdit.Password)
+        self.username_label = self.create_text("Username:", (window_width/2, window_height/2 - 70))
+        self.username_input = pygame.Rect(window_width/2 - 70, window_height/2 - 50, 140, 32)
+        self.password_label = self.create_text("Password:", (window_width/2, window_height/2))
+        self.password_input = pygame.Rect(window_width/2 - 70, window_height/2 + 20, 140, 32)
+        self.login_button_text = self.create_text("Login", (window_width/2, window_height/2 + 70))
+        self.login_button = pygame.Rect(window_width/2 - 70, window_height/2 + 50, 140, 32)  # Crează un Rect pentru butonul de login
 
-        self.button_login = QPushButton("Login")
-        self.button_login.clicked.connect(self.authenticate_user)
+        self.entry_username = ""
+        self.entry_password = ""
 
-        self.button_no_account = QPushButton("Don't have an account? Create one right now!")
-        self.button_no_account.clicked.connect(self.show_registration_window)
+    def create_text(self, text, position):
+        text_surface = self.font.render(text, True, (255, 255, 255))
+        return text_surface, text_surface.get_rect(center=position)
 
-        self.layout.addWidget(self.label_username)
-        self.layout.addWidget(self.entry_username)
-        self.layout.addWidget(self.label_password)
-        self.layout.addWidget(self.entry_password)
-        self.layout.addWidget(self.button_login)
-        self.layout.addWidget(self.button_no_account)
+    def run(self):
+        running = True
+        while running:
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    running = False
+                elif event.type == MOUSEBUTTONDOWN:
+                    if self.username_input.collidepoint(event.pos):
+                        self.get_input("username")
+                    elif self.password_input.collidepoint(event.pos):
+                        self.get_input("password")
+                    elif self.login_button.collidepoint(event.pos):  # Verifică dacă butonul de login a fost apăsat
+                        self.authenticate_user()
 
-        self.setLayout(self.layout)
+            self.screen.fill((100, 100, 100))  # Modifică culoarea de fundal
+
+            self.screen.blit(*self.username_label)
+            pygame.draw.rect(self.screen, (255, 255, 255), self.username_input, 2)
+            self.screen.blit(*self.password_label)
+            pygame.draw.rect(self.screen, (255, 255, 255), self.password_input, 2)
+            pygame.draw.rect(self.screen, (0, 255, 0), self.login_button)  # Diferențiază butonul de celelalte elemente
+            self.screen.blit(*self.login_button_text)
+
+            pygame.display.flip()
+            self.clock.tick(30)
+
+        pygame.quit()
+
+    def get_input(self, field):
+        input_box = ""
+        while True:
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    pygame.quit()
+                    exit()
+                elif event.type == KEYDOWN:
+                    if event.key == K_RETURN:
+                        if field == "username":
+                            self.entry_username = input_box
+                        elif field == "password":
+                            self.entry_password = input_box
+                        return
+                    elif event.key == K_BACKSPACE:
+                        input_box = input_box[:-1]
+                    else:
+                        input_box += event.unicode
+
+            self.screen.fill((100, 100, 100))  # Modifică culoarea de fundal
+            pygame.draw.rect(self.screen, (255, 255, 255), self.username_input, 2)
+            pygame.draw.rect(self.screen, (255, 255, 255), self.password_input, 2)
+            text_surface = self.font.render(input_box, True, (255, 255, 255))
+            width = max(200, text_surface.get_width()+10)
+            input_box_rect = pygame.Rect(window_width/2 - 70, window_height/2 - 50 if field == "username" else window_height/2 + 20, width, 32)
+            pygame.draw.rect(self.screen, (255, 255, 255), input_box_rect)
+            pygame.draw.rect(self.screen, (255, 255, 255), self.password_input, 2)
+            pygame.display.flip()
+            self.clock.tick(30)
 
     def authenticate_user(self):
-        username = self.entry_username.text()
-        password = self.entry_password.text()
-
-        if not username or not password:
-            QMessageBox.critical(self, "Error", "Both fields must be filled in!")
+        if not self.entry_username or not self.entry_password:
+            print("Both fields must be filled in!")
         else:
-            # Creează un manager de acces la rețea
-            network_manager = QNetworkAccessManager(self)
-            
-            # Construiește URL-ul pentru autentificare
-            url = QUrl("http://localhost:5000/authenticate_user")
-            
-            # Construiește cererea
-            request = QNetworkRequest(url)
-            request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
-            
-            # Construiește datele JSON pentru autentificare
-            data = {"username": username, "password": password}
-            
-            # Creează și trimite cererea POST
-            reply = network_manager.post(request, QByteArray(json.dumps(data).encode('utf-8')))
-            
-            # Conectează slot-ul de răspuns la cerere
-            reply.finished.connect(self.handle_authentication_response)
-    
-    def handle_authentication_response(self):
-        reply = self.sender()
-        response_data = json.loads(reply.readAll().data().decode('utf-8'))
-        message = response_data.get('message', '')
-
-        if message == "User authenticated successfully":
-            QMessageBox.information(self, "Succes", message)
-
-            self.showHomeWindow.emit()
-            self.hide()
-        else:
-            QMessageBox.critical(self, "Error", message)
+            # Emite semnalul pentru autentificare reușită
+            self.showHomeWindow()
 
 
-    def show_registration_window(self):
-        self.showRegistrationWindow.emit()
-        self.hide()
 
 class RegistrationWindow(QWidget):
     showLoginWindow = pyqtSignal()
@@ -225,9 +242,10 @@ def start_application():
     home_window = HomeWindow()
 
     # Conectați semnalul din fereastra de autentificare la slotul pentru afișarea fereastra de înregistrare
-    login_window.showRegistrationWindow.connect(registration_window.show)
-    login_window.showHomeWindow.connect(home_window.show)
-    registration_window.showLoginWindow.connect(login_window.show)
+    # login_window.showRegistrationWindow.connect(registration_window.show)
+    # login_window.showHomeWindow.connect(home_window.show)
+    # registration_window.showLoginWindow.connect(login_window.show)
 
-    login_window.show()
+    # login_window.show()
+    login_window.run()
     app.exec_()
