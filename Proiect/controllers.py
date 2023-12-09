@@ -54,8 +54,25 @@ def authenticate_user():
         user = Users.query.filter_by(username=username, password=hashed_password).first()
 
         if user:
-            return jsonify({'message': 'User authenticated successfully'}), 200
+            return jsonify({'message': 'User authenticated successfully', 'username': username}), 200 
         else:
             return jsonify({'message': 'Invalid credentials'}), 401
     else:
         return jsonify({'message': 'Invalid credentials'}), 404
+
+def check_username():
+    from server.server import db, app, Users
+
+    data = request.get_json()
+    my_username = data['my_username']
+    username = data['username']
+
+    # Verifică dacă numele de utilizator există în baza de date
+    user = Users.query.filter_by(username=username).first()
+
+    if user != None and username != my_username:
+        return jsonify({'message': 'Username exists', 'username': username}), 200 
+    elif user != None and username == my_username:
+         return jsonify({'message': 'You cannot create a conversation with yourself'}), 404
+    else:
+        return jsonify({'message': 'Username does not exist'}), 404

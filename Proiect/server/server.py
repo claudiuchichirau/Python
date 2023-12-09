@@ -1,6 +1,6 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from controllers import create_user, authenticate_user
+from controllers import create_user, authenticate_user, check_username
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:1234@localhost/Proiect_Python'
@@ -22,6 +22,8 @@ class Users(db.Model):
 # Adaugă rutele pentru controlere
 app.add_url_rule('/create_user', 'create_user', create_user, methods=['POST'])
 app.add_url_rule('/authenticate_user', 'authenticate_user', authenticate_user, methods=['POST'])
+app.add_url_rule('/check_username', 'check_username', check_username, methods=['POST'])
+
 
 
 if __name__ == '__main__':
