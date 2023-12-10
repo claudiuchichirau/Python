@@ -1,6 +1,8 @@
 from flask import jsonify, request
+from sqlalchemy import or_
 import hashlib
 import secrets
+
 
 def create_user():
     from server.server import db, app, Users, Password
@@ -76,3 +78,58 @@ def check_username():
          return jsonify({'message': 'You cannot create a conversation with yourself'}), 404
     else:
         return jsonify({'message': 'Username does not exist'}), 404
+
+def store_key():
+    from server.server import db, app, Users, Password, ConversationKey
+
+    data = request.get_json()
+
+    # Extrageți numele de utilizator și cheia din datele cererii
+    username1 = data['username1']
+    username2 = data['username2']
+    key = data['key']
+
+    # Căutați ID-urile numelor de utilizator în tabela Users
+    user1 = Users.query.filter_by(username=username1).first()
+    user2 = Users.query.filter_by(username=username2).first()
+
+    if user1 is None or user2 is None:
+        return jsonify({'message': 'One or both usernames not found.'}), 404
+
+    # Inserează cheia în tabela ConversationKey
+    new_key = ConversationKey(user1_id=user1.id, user2_id=user2.id, key=key)
+    db.session.add(new_key)
+    db.session.commit()
+
+    return jsonify({'message': 'Key stored successfully!'}), 201
+
+def get_key():
+    from server.server import db, app, Users, Password, ConversationKey
+
+    data = request.get_json()
+
+    # Extrageți numele de utilizator din datele cererii
+    username1 = data['username1']
+    username2 = data['username2']
+
+    # Căutați ID-urile numelor de utilizator în tabela Users
+    user1 = Users.query.filter_by(username=username1).first()
+    user2 = Users.query.filter_by(username=username2).first()
+
+    if user1 is None or user2 is None:
+        return jsonify({'message': 'One or both usernames not found.'}), 404
+
+    # Căutați cheia în tabela ConversationKey
+    conversation_key = ConversationKey.query.filter(
+        or_(
+            (ConversationKey.user1_id == user1.id) & (ConversationKey.user2_id == user2.id),
+            (ConversationKey.user1_id == user2.id) & (ConversationKey.user2_id == user1.id)
+        )
+    ).first()
+
+    if conversation_key is None:
+        return jsonify({'message': 'No key found for this conversation.'}), 404
+
+    # Returnați cheia
+    return jsonify({'key': conversation_key.key}), 200
+

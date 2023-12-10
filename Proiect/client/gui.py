@@ -1,8 +1,9 @@
 import json
 import os
 import base64
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox, QDesktopWidget, QSpacerItem, QSizePolicy
-from PyQt5.QtCore import pyqtSignal, Qt, QUrl, QByteArray
+import xml.etree.ElementTree as ET
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox, QDesktopWidget, QSpacerItem, QSizePolicy, QTextEdit
+from PyQt5.QtCore import pyqtSignal, Qt, QUrl, QByteArray, QEventLoop
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from PyQt5.QtGui import QFont, QColor
 from cryptography.fernet import Fernet
@@ -242,8 +243,9 @@ class RegistrationWindow(QWidget):
 class HomeWindow(QWidget):
     showConversationWindow = pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, conversation_window):
         super().__init__()
+        self.conversation_window = conversation_window
 
     def check_user(self):
        
@@ -320,78 +322,183 @@ class HomeWindow(QWidget):
             username = response_data.get('username', '')
             user.start_conversation(username)
 
+            self.conversation_window.conversation()
             self.showConversationWindow.emit()
             self.hide()
         else:
             QMessageBox.critical(self, "Error", message)
 
 class ConversationWindow(QWidget):
+    key_received = pyqtSignal()
+
     def __init__(self):
         super().__init__()
+        self.key = None 
 
-        # Generarea unei chei de criptare
-        key = Fernet.generate_key()
-        cipher_suite = Fernet(key)
+        self.layout = QVBoxLayout()
 
-        log_filename = f'{user.username}-{user.conversation_partner}.log'
+        # Adăugați un widget de afișare a mesajelor
+        self.message_display = QTextEdit()
+        self.message_display.setReadOnly(True)
+        self.layout.addWidget(self.message_display)
 
-        # Criptarea numelui fișierului
-        encrypted_filename = cipher_suite.encrypt(log_filename.encode('utf-8'))
+        # Adăugați un widget de introducere a mesajelor
+        self.message_entry = QLineEdit()
+        self.layout.addWidget(self.message_entry)
 
-        # Codificarea numelui fișierului criptat în Base64
-        encoded_filename = base64.urlsafe_b64encode(encrypted_filename).decode('utf-8')
+        # Definește butonul de trimitere a mesajelor
+        self.button_start_conversation = QPushButton("Send")
+
+        # Conectați slotul de trimitere a mesajelor la butonul de trimitere
+        self.button_start_conversation.clicked.connect(self.send_message)
+
+        # Adăugați butonul la layout
+        self.layout.addWidget(self.button_start_conversation)
+
+        self.setLayout(self.layout)
+
+    def conversation(self):
+        # Sortează alfabetic numele de utilizator
+        sorted_usernames = sorted([user.username, user.conversation_partner])
+
+        # Generează numele fișierului
+        log_filename = f'{sorted_usernames[0]}-{sorted_usernames[1]}.log'
 
         # Verifică dacă fișierul log există și nu este gol
-        if os.path.exists(encoded_filename) and os.path.getsize(encoded_filename) > 0:
+        if os.path.exists(f'logs/{log_filename}') and os.path.getsize(f'logs/{log_filename}') > 0:
+            print("fis exista")
+
             # Citirea conversației criptate din fișierul log
-            with open(f'logs/{encoded_filename}', 'rb') as f:
+            with open(f'logs/{log_filename}', 'rb') as f:
                 encrypted_conversation = f.read()
 
+            print("encr conv:", encrypted_conversation)
+
+            # obtine cheia de decriptare din db
+            key = self.get_key()
+
             # Decriptarea conversației
+            cipher_suite = Fernet(key)
             conversation_string = cipher_suite.decrypt(encrypted_conversation).decode('utf-8')
-            conversation = json.loads(conversation_string)
+            print("conv citita din fisier:", conversation_string)
 
-            # Afișarea conversației
-            print(conversation)
-        else:
-            # Dacă fișierul log nu există sau este gol, inițializează o conversație goală
-            conversation = {'messages': []}
+            # Încărcarea conversației dintr-un șir XML
+            root = ET.fromstring(conversation_string)
+            conversation = [message.attrib for message in root.findall('message')]
 
-        username = f'{user.username}'
+        elif not os.path.exists(f'logs/{log_filename}'):
+            print("fis nu exista")
 
-        # Criptarea numelui fișierului
-        encrypted_username = cipher_suite.encrypt(username.encode('utf-8'))
+            # Generarea unei chei de criptare
+            key = Fernet.generate_key()
+            cipher_suite = Fernet(key)
 
-        # Codificarea numelui fișierului criptat în Base64
-        encoded_username = base64.urlsafe_b64encode(encrypted_username).decode('utf-8')
+            # Convertirea cheii într-un șir
+            key_str = key.decode()
 
-        new_message = {'username': encoded_username, 'content': None}
-        conversation['messages'].append(new_message)
+            # salvarea key-ul in database
+            network_manager = QNetworkAccessManager(self)
+            url = QUrl("http://localhost:5000/store_key")
+            request = QNetworkRequest(url)
+            request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
+            data = {"username1": user.username, "username2": user.conversation_partner, "key": key_str}
+            reply = network_manager.post(request, QByteArray(json.dumps(data).encode('utf-8')))
 
-        # Criptarea conversației actualizate
-        conversation_string = json.dumps(conversation)
-        encrypted_conversation = cipher_suite.encrypt(conversation_string.encode('utf-8'))
+        print("conversatia salvata in fisier:", conversation)
+
+        # obtinem cheia de criptare din database
+        key = self.get_key()
+
+        # criptam conversatia cu cheia obtinuta din db
+        cipher_suite = Fernet(key)
+
+        # Crearea unui șir XML din conversație
+        root = ET.Element('conversation')
+        for message in conversation:
+            message_element = ET.SubElement(root, 'message')
+            message_element.text = message
+        conversation_string = ET.tostring(root, encoding='utf-8')
+
+        # Criptarea șirului XML cu obiectul Fernet
+        encrypted_conversation = cipher_suite.encrypt(conversation_string)
 
         # Stocarea conversației criptate în fișierul log
-        with open(f'logs/{encoded_filename}', 'wb') as f:
+        with open(f'logs/{log_filename}', 'wb') as f:
             f.write(encrypted_conversation)
 
-        # window_width = 600
-        # window_height = 700
-        # self.resize(window_width, window_height)
+    def get_key(self):
+        network_manager = QNetworkAccessManager(self)
+        url = QUrl("http://localhost:5000/get_key")
+        request = QNetworkRequest(url)
+        request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
+        data = {"username1": user.username, "username2": user.conversation_partner}
+        reply = network_manager.post(request, QByteArray(json.dumps(data).encode('utf-8')))
+        reply.finished.connect(self.handle_get_key)
 
-        # self.setWindowTitle("QuickChat - Home")
-        # self.layout = QVBoxLayout()
-        
-        # self.layout.addSpacing(120)
+        self.loop = QEventLoop()
+        reply.finished.connect(self.handle_get_key)
+        self.loop.exec_()  # start the event loop
+        print("1. Key received:", self.key)
+        return self.key
 
-        # self.label_welcome = QLabel("conv window}!")  # Adaugă mesajul de bun venit
-        # self.label_welcome.setFont(QFont('Times', 18))  # Schimbă fontul și dimensiunea textului
-        # self.label_welcome.setAlignment(Qt.AlignCenter)
-        # self.layout.addWidget(self.label_welcome)
+    def handle_get_key(self):
+        reply = self.sender()
+        response_str = reply.readAll().data().decode('utf-8')
 
-        # self.setLayout(self.layout)
+        if response_str.strip():  # check if the response is not empty
+            try:
+                response_data = json.loads(response_str)
+            except json.JSONDecodeError:
+                print("Invalid JSON received:", response_str)
+                return
 
+            if 'key' in response_data:
+                self.key = response_data.get('key', '')
+                self.loop.quit()  # quit the event loop
+            else:
+                message = response_data['message']
+                QMessageBox.critical(self, "Error", message)
+        else:
+            print("No response received.")
+
+
+        # if 'key' in response_data:
+        #     self.key = response_data.get('key', '') 
+        #     self.key_received.emit()  # emit the signal
+
+        # else:
+        #     QMessageBox.critical(self, "Error", message)
+
+    def load_messages_from_xml(self, filename):
+        # Încărcați și analizați fișierul XML
+        tree = ET.parse(filename)
+        root = tree.getroot()
+
+        # Parcurgeți fiecare mesaj din fișierul XML
+        for message in root.findall('message'):
+            sender = message.find('sender').text
+            hour = message.find('hour').text
+            content = message.find('content').text
+
+            # Adăugați mesajul la afișaj
+            self.add_message_to_display(sender, hour, content)
+
+    def add_message_to_display(self, sender, hour, content):
+        # Formatați mesajul
+        message_str = f'{hour} {sender}: {content}\n'
+
+        # Adăugați mesajul la afișaj
+        self.message_display.append(message_str)
+
+    def send_message(self):
+        # Obțineți mesajul introdus de utilizator
+        message = self.message_entry.text()
+
+        # Adăugați mesajul la afișaj
+        self.add_message_to_display(user.username, 'now', message)
+
+        # Goliți câmpul de introducere a mesajelor
+        self.message_entry.clear()
 
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()
@@ -405,9 +512,9 @@ class ClickableLabel(QLabel):
 def start_application():
     app = QApplication([])
     registration_window = RegistrationWindow()
-    home_window = HomeWindow()
-    login_window = LoginWindow(home_window)
     conversation_window = ConversationWindow()
+    home_window = HomeWindow(conversation_window)
+    login_window = LoginWindow(home_window)
 
     # Conectați semnalul din fereastra de autentificare la slotul pentru afișarea fereastra de înregistrare
     login_window.showRegistrationWindow.connect(registration_window.show)
