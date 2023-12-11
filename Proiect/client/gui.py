@@ -1,12 +1,15 @@
 import json
 import os
 import base64
+import datetime
 import xml.etree.ElementTree as ET
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox, QDesktopWidget, QSpacerItem, QSizePolicy, QTextEdit
-from PyQt5.QtCore import pyqtSignal, Qt, QUrl, QByteArray, QEventLoop
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox, QDesktopWidget, QSpacerItem, QSizePolicy, QTextEdit, QListWidgetItem, QListWidget, QHBoxLayout, QFileDialog
+from PyQt5.QtCore import pyqtSignal, Qt, QUrl, QByteArray, QEventLoop, QTimer
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
-from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtGui import QFont, QColor, QPixmap
 from cryptography.fernet import Fernet
+from functools import partial
+from threading import Semaphore
 
 class User:
     def __init__(self):
@@ -30,6 +33,7 @@ class User:
         self.conversation_partner = None  # Ștergerea numelui de utilizator al partenerului
 
 user = User()
+sem = Semaphore()
 
 class LoginWindow(QWidget):
     showRegistrationWindow = pyqtSignal()
@@ -286,7 +290,6 @@ class HomeWindow(QWidget):
 
         self.setLayout(self.layout)
 
-
     def start_conversation(self):
         username = self.entry_username.text()
 
@@ -318,7 +321,7 @@ class HomeWindow(QWidget):
         message = response_data.get('message', '')
 
         if message == "Username exists":
-            QMessageBox.information(self, "Succes", message)
+            # QMessageBox.information(self, "Succes", message)
             username = response_data.get('username', '')
             user.start_conversation(username)
 
@@ -330,63 +333,21 @@ class HomeWindow(QWidget):
 
 class ConversationWindow(QWidget):
     key_received = pyqtSignal()
+    showHomeWindow = pyqtSignal()
 
     def __init__(self):
         super().__init__()
         self.key = None 
-
-        self.layout = QVBoxLayout()
-
-        # Adăugați un widget de afișare a mesajelor
-        self.message_display = QTextEdit()
-        self.message_display.setReadOnly(True)
-        self.layout.addWidget(self.message_display)
-
-        # Adăugați un widget de introducere a mesajelor
-        self.message_entry = QLineEdit()
-        self.layout.addWidget(self.message_entry)
-
-        # Definește butonul de trimitere a mesajelor
-        self.button_start_conversation = QPushButton("Send")
-
-        # Conectați slotul de trimitere a mesajelor la butonul de trimitere
-        self.button_start_conversation.clicked.connect(self.send_message)
-
-        # Adăugați butonul la layout
-        self.layout.addWidget(self.button_start_conversation)
-
-        self.setLayout(self.layout)
+        self.num_messages_added = 0
 
     def conversation(self):
-        # Sortează alfabetic numele de utilizator
         sorted_usernames = sorted([user.username, user.conversation_partner])
 
         # Generează numele fișierului
         log_filename = f'{sorted_usernames[0]}-{sorted_usernames[1]}.log'
 
-        # Verifică dacă fișierul log există și nu este gol
-        if os.path.exists(f'logs/{log_filename}') and os.path.getsize(f'logs/{log_filename}') > 0:
-            print("fis exista")
-
-            # Citirea conversației criptate din fișierul log
-            with open(f'logs/{log_filename}', 'rb') as f:
-                encrypted_conversation = f.read()
-
-            print("encr conv:", encrypted_conversation)
-
-            # obtine cheia de decriptare din db
-            key = self.get_key()
-
-            # Decriptarea conversației
-            cipher_suite = Fernet(key)
-            conversation_string = cipher_suite.decrypt(encrypted_conversation).decode('utf-8')
-            print("conv citita din fisier:", conversation_string)
-
-            # Încărcarea conversației dintr-un șir XML
-            root = ET.fromstring(conversation_string)
-            conversation = [message.attrib for message in root.findall('message')]
-
-        elif not os.path.exists(f'logs/{log_filename}'):
+        # Daca pana acum cei doi nu au conversat niciodata, cream fisierul log
+        if not os.path.exists(f'logs/{log_filename}'):
             print("fis nu exista")
 
             # Generarea unei chei de criptare
@@ -404,27 +365,97 @@ class ConversationWindow(QWidget):
             data = {"username1": user.username, "username2": user.conversation_partner, "key": key_str}
             reply = network_manager.post(request, QByteArray(json.dumps(data).encode('utf-8')))
 
-        print("conversatia salvata in fisier:", conversation)
+            # Conectează slot-ul de răspuns la cerere
+            reply.finished.connect(partial(self.handle_create_key, log_filename))
 
-        # obtinem cheia de criptare din database
-        key = self.get_key()
+        window_width = 600
+        window_height = 700
+        self.resize(window_width, window_height)
 
-        # criptam conversatia cu cheia obtinuta din db
-        cipher_suite = Fernet(key)
+        self.setWindowTitle(f"QuickChat - Conversation with {user.conversation_partner}")
 
-        # Crearea unui șir XML din conversație
-        root = ET.Element('conversation')
-        for message in conversation:
-            message_element = ET.SubElement(root, 'message')
-            message_element.text = message
-        conversation_string = ET.tostring(root, encoding='utf-8')
+        self.layout = QVBoxLayout()
 
-        # Criptarea șirului XML cu obiectul Fernet
-        encrypted_conversation = cipher_suite.encrypt(conversation_string)
+        # Creați un QHBoxLayout pentru butoane
+        button_layout = QHBoxLayout()
 
-        # Stocarea conversației criptate în fișierul log
-        with open(f'logs/{log_filename}', 'wb') as f:
-            f.write(encrypted_conversation)
+        # Adăugați butonul "Back" în partea stângă
+        button_back = QPushButton("Back")
+        button_back.clicked.connect(self.back)  # Conectați-l la metoda "back"
+        button_layout.addWidget(button_back)
+
+        # Adăugați un spațiu gol pentru a împinge celălalt buton în partea dreaptă
+        button_layout.addStretch()
+
+        # Adăugați butonul "Delete Conversation" în partea dreaptă
+        button_delete = QPushButton("Delete Conversation")
+        button_delete.clicked.connect(partial(self.delete_conversation,f'logs/{log_filename}'))  # Conectați-l la metoda "delete_conversation"
+        button_layout.addWidget(button_delete)
+
+        # Adăugați layout-ul de butoane la layout-ul principal
+        self.layout.addLayout(button_layout)
+
+        # Adăugați un widget de afișare a mesajelor
+        self.message_display = QListWidget()
+        # self.message_display.setReadOnly(True)
+        self.layout.addWidget(self.message_display)
+
+        # Adăugați un widget de introducere a mesajelor
+        self.message_entry = QLineEdit()
+        self.layout.addWidget(self.message_entry)
+
+        # Definește butonul de trimitere a mesajelor
+        self.button_start_conversation = QPushButton("Send")
+        self.button_start_conversation.setEnabled(False)  # Dezactivează butonul inițial
+        self.button_start_conversation.clicked.connect(partial(self.send_message, f'logs/{log_filename}'))
+
+        # Activează butonul de trimitere atunci când există text în widget-ul de introducere a mesajelor
+        self.message_entry.textChanged.connect(lambda: self.button_start_conversation.setEnabled(bool(self.message_entry.text())))
+        self.layout.addWidget(self.button_start_conversation)
+
+        self.button_upload_image = QPushButton("Upload Image")
+        self.button_upload_image.clicked.connect(partial(self.upload_image, f'logs/{log_filename}'))
+        self.layout.addWidget(self.button_upload_image)
+
+        self.setLayout(self.layout)
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(partial(self.load_messages_from_xml, f'logs/{log_filename}'))
+        self.timer.start(1000)  # timpul este în milisecunde
+
+    def upload_image(self, log_filename):
+        # Deschideți un dialog pentru a selecta fișierul imagine
+        image_filename, _ = QFileDialog.getOpenFileName()
+
+        if image_filename:
+            # Dacă un fișier a fost selectat, salvați calea către fișierul imagine
+            self.image_filename = image_filename
+            self.send_message(log_filename)
+
+    def handle_create_key(self, log_filename):
+        reply = self.sender()
+        response_data = json.loads(reply.readAll().data().decode('utf-8'))
+        message = response_data.get('message', '')
+
+        if message == "Key stored successfully!":
+            ##### PUNEM UN MESAJ DE TEST IN FISIER
+
+            # Obtine numele de utilizator si ora curenta
+            sender = user.username
+            hour = datetime.datetime.now().strftime("%H:%M")
+            day = datetime.datetime.now().strftime("%d.%m.%Y") 
+
+            # Creaza un element de mesaj in formatul XML specificat
+            root = ET.Element('conversation')
+            conversation_string = ET.tostring(root, encoding='utf-8')
+
+            # Cripteaza si salveaza mesajul in fisier
+            key = self.get_key()
+            cipher_suite = Fernet(key)
+            encrypted_message = cipher_suite.encrypt(conversation_string)
+            write_to_file(f'logs/{log_filename}', encrypted_message)
+        else:
+            QMessageBox.critical(self, "Error", message)
 
     def get_key(self):
         network_manager = QNetworkAccessManager(self)
@@ -438,7 +469,7 @@ class ConversationWindow(QWidget):
         self.loop = QEventLoop()
         reply.finished.connect(self.handle_get_key)
         self.loop.exec_()  # start the event loop
-        print("1. Key received:", self.key)
+        # print("1. Key received:", self.key)
         return self.key
 
     def handle_get_key(self):
@@ -458,8 +489,8 @@ class ConversationWindow(QWidget):
             else:
                 message = response_data['message']
                 QMessageBox.critical(self, "Error", message)
-        else:
-            print("No response received.")
+        # else:
+        #     print("No response received.")
 
 
         # if 'key' in response_data:
@@ -470,35 +501,181 @@ class ConversationWindow(QWidget):
         #     QMessageBox.critical(self, "Error", message)
 
     def load_messages_from_xml(self, filename):
-        # Încărcați și analizați fișierul XML
-        tree = ET.parse(filename)
-        root = tree.getroot()
+        print("am intrat in load, self.num_messages_added:", self.num_messages_added)
+        # Citirea conversatiei criptate din fisierul log
+        encrypted_conversation = read_from_file(filename)
+
+        # obtine cheia de decriptare din db
+        key = self.get_key()
+
+        # Decriptarea conversatiei
+        cipher_suite = Fernet(key)
+        conversation_string = cipher_suite.decrypt(encrypted_conversation).decode('utf-8')
+
+        # Incarca XML-ul existent din string-ul decriptat
+        root = ET.fromstring(conversation_string)
+
+        # Daca fisierul este gol sau contine doar elementul root, afiseaza un mesaj si iesi din functie
+        if not encrypted_conversation or not list(root):
+            self.message_display.clear()
+            self.message_display.addItem("There is no conversation so far.")
+            return
 
         # Parcurgeți fiecare mesaj din fișierul XML
-        for message in root.findall('message'):
-            sender = message.find('sender').text
-            hour = message.find('hour').text
-            content = message.find('content').text
+        for i, message in enumerate(root.findall('message')):
+            # Daca acesta este un mesaj nou, adauga-l la afisaj
+            if i >= self.num_messages_added:
+                sender = message.find('sender').text
+                day = message.find('day').text
+                hour = message.find('hour').text
+                content = message.find('content').text
 
-            # Adăugați mesajul la afișaj
-            self.add_message_to_display(sender, hour, content)
+                if sender is not None and day is not None and hour is not None and content is not None:
+                    try:
+                        # Încercați să decodați conținutul din Base64
+                        decoded_image = base64.b64decode(content)
+                        # Creați un QPixmap din datele imaginii decodate
+                        pixmap = QPixmap()
+                        pixmap.loadFromData(decoded_image)
+                        # Creați un QLabel pentru a afișa QPixmap
+                        label = QLabel()
+                        label.setPixmap(pixmap)
+                        # Creați un QListWidgetItem și setați QLabel ca widget personalizat
+                        item = QListWidgetItem(self.message_display)
+                        self.message_display.setItemWidget(item, label)
+                    except Exception:
+                        # Dacă decodarea nu reușește, tratați conținutul ca text
+                        self.add_message_to_display(sender, day, hour, content)
 
-    def add_message_to_display(self, sender, hour, content):
-        # Formatați mesajul
-        message_str = f'{hour} {sender}: {content}\n'
+        print("am iesit din load")
 
-        # Adăugați mesajul la afișaj
-        self.message_display.append(message_str)
+    def add_message_to_display(self, sender, day, hour, content):
+        self.num_messages_added += 1
 
-    def send_message(self):
-        # Obțineți mesajul introdus de utilizator
-        message = self.message_entry.text()
+        if sender == user.username:
+            message_str = f'{content} : {hour}'
+        else:
+            message_str = f'{hour} : {content}\n'
 
-        # Adăugați mesajul la afișaj
-        self.add_message_to_display(user.username, 'now', message)
+        # Creați un nou QListWidgetItem cu mesajul
+        item = QListWidgetItem(message_str)
 
-        # Goliți câmpul de introducere a mesajelor
+        # Alegeți alinierea în funcție de expeditor
+        if sender == user.username:
+            item.setTextAlignment(Qt.AlignRight)
+        else:
+            item.setTextAlignment(Qt.AlignLeft)
+
+        # Adăugați elementul la QListWidget
+        self.message_display.addItem(item)
+
+    def send_message(self, log_filename):
+        # Obtine mesajul din widget-ul de introducere a mesajelor
+        message_content = self.message_entry.text()
+
+        # Obtine numele de utilizator si ora curenta
+        sender = user.username
+        hour = datetime.datetime.now().strftime("%H:%M")
+        day = datetime.datetime.now().strftime("%d.%m.%Y") 
+
+        # Citirea conversatiei criptate din fisierul log
+        encrypted_conversation = read_from_file(log_filename)
+
+        # obtine cheia de decriptare din db
+        key = self.get_key()
+
+        # Decriptarea conversatiei
+        cipher_suite = Fernet(key)
+        conversation_string = cipher_suite.decrypt(encrypted_conversation).decode('utf-8')
+
+        # Incarca XML-ul existent din string-ul decriptat
+        root = ET.fromstring(conversation_string)
+
+        # Creaza un nou element de mesaj si il adauga la XML-ul existent
+        message_element = ET.SubElement(root, 'message')
+        sender_element = ET.SubElement(message_element, 'sender')
+        sender_element.text = sender
+        day_element = ET.SubElement(message_element, 'day')
+        day_element.text = day
+        hour_element = ET.SubElement(message_element, 'hour')
+        hour_element.text = hour
+        content_element = ET.SubElement(message_element, 'content')
+        # content_element.text = message_content
+
+        # Dacă există o imagine încărcată, convertiți-o în Base64 și adăugați-o la mesaj
+        if hasattr(self, 'image_filename'):
+            with open(self.image_filename, 'rb') as image_file:
+                encoded_image = base64.b64encode(image_file.read()).decode('utf-8')
+            content_element.text = encoded_image
+        else:
+            content_element.text = message_content
+
+        # Converteste XML-ul actualizat in string
+        conversation_string = ET.tostring(root, encoding='utf-8')
+
+        # Cripteaza si salveaza mesajul in fisier
+        encrypted_message = cipher_suite.encrypt(conversation_string)
+        write_to_file(log_filename, encrypted_message)
+
+        # self.num_messages_added += 1
+        self.add_message_to_display(sender, day, hour, message_content)
+
+        # Sterge mesajul din widget-ul de introducere a mesajelor
         self.message_entry.clear()
+        if hasattr(self, 'image_filename'):
+            del self.image_filename
+
+    def back(self):
+        self.showHomeWindow.emit()
+        self.hide()
+
+    def delete_conversation(self, filename):
+        # Crearea unui șir XML gol cu doar elementul rădăcină
+        empty_conversation_string = "<conversation></conversation>"
+
+        # Obținerea cheii de criptare din baza de date
+        key = self.get_key()
+
+        # Criptarea șirului gol
+        cipher_suite = Fernet(key)
+        encrypted_empty_conversation = cipher_suite.encrypt(empty_conversation_string.encode('utf-8'))
+
+        # Scrierea șirului gol criptat înapoi în fișier
+        write_to_file(filename, encrypted_empty_conversation)
+
+        # Golirea afișajului de mesaje
+        self.message_display.clear()
+
+
+def write_to_file(filename, data):
+    # Obținerea semaforului
+    with sem:
+        try:
+            # Scrierea datelor în fișier
+            with open(filename, 'wb') as f:
+                f.write(data)
+        except IOError as e:
+            print(f"A apărut o eroare la scrierea în fișierul {filename}: {e}")
+        except Exception as e:
+            print(f"A apărut o eroare neașteptată: {e}")
+
+def read_from_file(filename):
+    # Verificarea dacă fișierul există înainte de a încerca să îl citim
+    if not os.path.exists(filename):
+        print(f"Fișierul {filename} nu există.")
+        return None
+
+    # Obținerea semaforului
+    with sem:
+        try:
+            # Citirea datelor din fișier
+            with open(filename, 'rb') as f:
+                data = f.read()
+        except IOError as e:
+            print(f"A apărut o eroare la citirea fișierului {filename}: {e}")
+            return None
+
+    return data
 
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()
@@ -521,6 +698,7 @@ def start_application():
     login_window.showHomeWindow.connect(home_window.show)
     registration_window.showLoginWindow.connect(login_window.show)
     home_window.showConversationWindow.connect(conversation_window.show)
+    conversation_window.showHomeWindow.connect(home_window.show)
 
     login_window.show()
     app.exec_()
