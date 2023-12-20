@@ -2,6 +2,8 @@ import json
 import os
 import base64
 import datetime
+import logging
+import binascii
 import xml.etree.ElementTree as ET
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox, QDesktopWidget, QSpacerItem, QSizePolicy, QTextEdit, QListWidgetItem, QListWidget, QHBoxLayout, QFileDialog
 from PyQt5.QtCore import pyqtSignal, Qt, QUrl, QByteArray, QEventLoop, QTimer
@@ -500,54 +502,97 @@ class ConversationWindow(QWidget):
         # else:
         #     QMessageBox.critical(self, "Error", message)
 
+    # def load_messages_from_xml(self, filename):
+    #     print("am intrat in load, self.num_messages_added:", self.num_messages_added)
+    #     # Citirea conversatiei criptate din fisierul log
+    #     encrypted_conversation = read_from_file(filename)
+
+    #     # obtine cheia de decriptare din db
+    #     key = self.get_key()
+
+    #     # Decriptarea conversatiei
+    #     cipher_suite = Fernet(key)
+    #     conversation_string = cipher_suite.decrypt(encrypted_conversation).decode('utf-8')
+
+    #     # Incarca XML-ul existent din string-ul decriptat
+    #     root = ET.fromstring(conversation_string)
+
+    #     # Daca fisierul este gol sau contine doar elementul root, afiseaza un mesaj si iesi din functie
+    #     if not encrypted_conversation or not list(root):
+    #         self.message_display.clear()
+    #         self.message_display.addItem("There is no conversation so far.")
+    #         return
+
+    #     # Parcurgeți fiecare mesaj din fișierul XML
+    #     for i, message in enumerate(root.findall('message')):
+    #         # Daca acesta este un mesaj nou, adauga-l la afisaj
+    #         if i >= self.num_messages_added:
+    #             sender = message.find('sender').text
+    #             day = message.find('day').text
+    #             hour = message.find('hour').text
+    #             content = message.find('content').text
+
+    #             if sender is not None and day is not None and hour is not None and content is not None:
+    #                 try:
+    #                     # Încercați să decodați conținutul din Base64
+    #                     decoded_image = base64.b64decode(content)
+    #                     # Creați un QPixmap din datele imaginii decodate
+    #                     pixmap = QPixmap()
+    #                     pixmap.loadFromData(decoded_image)
+    #                     # Creați un QLabel pentru a afișa QPixmap
+    #                     label = QLabel()
+    #                     label.setPixmap(pixmap)
+    #                     # Creați un QListWidgetItem și setați QLabel ca widget personalizat
+    #                     item = QListWidgetItem(self.message_display)
+    #                     self.message_display.setItemWidget(item, label)
+    #                 except Exception:
+    #                     # Dacă decodarea nu reușește, tratați conținutul ca text
+    #                     self.add_message_to_display(sender, day, hour, content)
+
+    #     print("am iesit din load")
+
     def load_messages_from_xml(self, filename):
-        print("am intrat in load, self.num_messages_added:", self.num_messages_added)
-        # Citirea conversatiei criptate din fisierul log
+        logging.info("Intrat în load, self.num_messages_added: %s", self.num_messages_added)
+        print("Intrat în load, self.num_messages_added:", self.num_messages_added)
         encrypted_conversation = read_from_file(filename)
 
-        # obtine cheia de decriptare din db
-        key = self.get_key()
-
-        # Decriptarea conversatiei
-        cipher_suite = Fernet(key)
-        conversation_string = cipher_suite.decrypt(encrypted_conversation).decode('utf-8')
-
-        # Incarca XML-ul existent din string-ul decriptat
-        root = ET.fromstring(conversation_string)
-
-        # Daca fisierul este gol sau contine doar elementul root, afiseaza un mesaj si iesi din functie
-        if not encrypted_conversation or not list(root):
+        if not encrypted_conversation:
             self.message_display.clear()
             self.message_display.addItem("There is no conversation so far.")
             return
 
-        # Parcurgeți fiecare mesaj din fișierul XML
+        key = self.get_key()
+        conversation_string = self.decrypt_conversation(encrypted_conversation, key)
+        root = ET.fromstring(conversation_string)
+
         for i, message in enumerate(root.findall('message')):
-            # Daca acesta este un mesaj nou, adauga-l la afisaj
             if i >= self.num_messages_added:
-                sender = message.find('sender').text
-                day = message.find('day').text
-                hour = message.find('hour').text
-                content = message.find('content').text
+                self.display_message(message)
 
-                if sender is not None and day is not None and hour is not None and content is not None:
-                    try:
-                        # Încercați să decodați conținutul din Base64
-                        decoded_image = base64.b64decode(content)
-                        # Creați un QPixmap din datele imaginii decodate
-                        pixmap = QPixmap()
-                        pixmap.loadFromData(decoded_image)
-                        # Creați un QLabel pentru a afișa QPixmap
-                        label = QLabel()
-                        label.setPixmap(pixmap)
-                        # Creați un QListWidgetItem și setați QLabel ca widget personalizat
-                        item = QListWidgetItem(self.message_display)
-                        self.message_display.setItemWidget(item, label)
-                    except Exception:
-                        # Dacă decodarea nu reușește, tratați conținutul ca text
-                        self.add_message_to_display(sender, day, hour, content)
+        logging.info("Ieșit din load")
+        print("Ieșit din load")
 
-        print("am iesit din load")
+    def decrypt_conversation(self, encrypted_conversation, key):
+        cipher_suite = Fernet(key)
+        return cipher_suite.decrypt(encrypted_conversation).decode('utf-8')
+
+    def display_message(self, message):
+        sender = message.find('sender').text
+        day = message.find('day').text
+        hour = message.find('hour').text
+        content = message.find('content').text
+
+        if sender and day and hour and content:
+            try:
+                decoded_image = base64.b64decode(content)
+                pixmap = QPixmap()
+                pixmap.loadFromData(decoded_image)
+                label = QLabel()
+                label.setPixmap(pixmap)
+                item = QListWidgetItem(self.message_display)
+                self.message_display.setItemWidget(item, label)
+            except binascii.Error:
+                self.add_message_to_display(sender, day, hour, content)
 
     def add_message_to_display(self, sender, day, hour, content):
         self.num_messages_added += 1
