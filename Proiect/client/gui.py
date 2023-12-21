@@ -4,12 +4,16 @@ import base64
 import datetime
 import logging
 import binascii
+import os
+import time
 import xml.etree.ElementTree as ET
 from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox, QDesktopWidget, QSpacerItem, QSizePolicy, QTextEdit, QListWidgetItem, QListWidget, QHBoxLayout, QFileDialog
 from PyQt5.QtCore import pyqtSignal, Qt, QUrl, QByteArray, QEventLoop, QTimer
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from PyQt5.QtGui import QFont, QColor, QPixmap
 from cryptography.fernet import Fernet
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 from functools import partial
 from threading import Semaphore
 
@@ -340,7 +344,8 @@ class ConversationWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.key = None 
-        self.num_messages_added = 0
+        # self.num_messages_added = 0
+        self.message_display = QListWidget()
 
     def conversation(self):
         sorted_usernames = sorted([user.username, user.conversation_partner])
@@ -348,28 +353,7 @@ class ConversationWindow(QWidget):
         # Generează numele fișierului
         log_filename = f'{sorted_usernames[0]}-{sorted_usernames[1]}.log'
 
-        # Daca pana acum cei doi nu au conversat niciodata, cream fisierul log
-        if not os.path.exists(f'logs/{log_filename}'):
-            print("fis nu exista")
-
-            # Generarea unei chei de criptare
-            key = Fernet.generate_key()
-            cipher_suite = Fernet(key)
-
-            # Convertirea cheii într-un șir
-            key_str = key.decode()
-
-            # salvarea key-ul in database
-            network_manager = QNetworkAccessManager(self)
-            url = QUrl("http://localhost:5000/store_key")
-            request = QNetworkRequest(url)
-            request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
-            data = {"username1": user.username, "username2": user.conversation_partner, "key": key_str}
-            reply = network_manager.post(request, QByteArray(json.dumps(data).encode('utf-8')))
-
-            # Conectează slot-ul de răspuns la cerere
-            reply.finished.connect(partial(self.handle_create_key, log_filename))
-
+        # grafica
         window_width = 600
         window_height = 700
         self.resize(window_width, window_height)
@@ -421,9 +405,48 @@ class ConversationWindow(QWidget):
 
         self.setLayout(self.layout)
 
+        # creare fisier log / incarcare mesaje din fisier /
+
+        # Daca pana acum cei doi nu au conversat niciodata, cream fisierul log
+        if not os.path.exists(f'logs/{log_filename}'):
+            print("fis nu exista")
+
+            with open(f'logs/{log_filename}', 'w') as f:
+                pass
+
+            # Generarea unei chei de criptare
+            key = Fernet.generate_key()
+            cipher_suite = Fernet(key)
+
+            # Convertirea cheii într-un șir
+            key_str = key.decode()
+
+            # salvarea key-ul in database
+            network_manager = QNetworkAccessManager(self)
+            url = QUrl("http://localhost:5000/store_key")
+            request = QNetworkRequest(url)
+            request.setHeader(QNetworkRequest.ContentTypeHeader, "application/json")
+            data = {"username1": user.username, "username2": user.conversation_partner, "key": key_str}
+            reply = network_manager.post(request, QByteArray(json.dumps(data).encode('utf-8')))
+
+            # Conectează slot-ul de răspuns la cerere
+            reply.finished.connect(partial(self.handle_create_key, log_filename))
+        else:
+            print("fis exista")
+            self.load_messages_from_xml(f'logs/{log_filename}')
+
+        # self.start_monitoring(f'logs/{log_filename}', self.display_new_message)
+        # monitor = self.FileMonitor(f'logs/{log_filename}', self.my_callback)
+        # monitor.start_monitoring()
+
+        self.my_class_instance = ConversationWindow.MyClass(f'logs/{log_filename}', self)
         self.timer = QTimer()
-        self.timer.timeout.connect(partial(self.load_messages_from_xml, f'logs/{log_filename}'))
-        self.timer.start(1000)  # timpul este în milisecunde
+        self.timer.timeout.connect(partial(self.my_class_instance.verify_is_modified))
+        self.timer.start(1000)  # timpul este în milisecund
+
+        # self.timer = QTimer()
+        # self.timer.timeout.connect(partial(self.verify_is_modified, f'logs/{log_filename}'))
+        # self.timer.start(1000)  # timpul este în milisecunde
 
     def upload_image(self, log_filename):
         # Deschideți un dialog pentru a selecta fișierul imagine
@@ -552,8 +575,8 @@ class ConversationWindow(QWidget):
     #     print("am iesit din load")
 
     def load_messages_from_xml(self, filename):
-        logging.info("Intrat în load, self.num_messages_added: %s", self.num_messages_added)
-        print("Intrat în load, self.num_messages_added:", self.num_messages_added)
+        logging.info("Intrat în load, self.num_messages_added:")
+        print("Intrat în load")
         encrypted_conversation = read_from_file(filename)
 
         if not encrypted_conversation:
@@ -566,8 +589,8 @@ class ConversationWindow(QWidget):
         root = ET.fromstring(conversation_string)
 
         for i, message in enumerate(root.findall('message')):
-            if i >= self.num_messages_added:
-                self.display_message(message)
+            # if i >= self.num_messages_added:
+            self.display_message(message)
 
         logging.info("Ieșit din load")
         print("Ieșit din load")
@@ -594,13 +617,30 @@ class ConversationWindow(QWidget):
             except binascii.Error:
                 self.add_message_to_display(sender, day, hour, content)
 
+    def display_new_message(self, filename):
+        print("Intrat în display_new_message")
+        encrypted_conversation = read_from_file(filename)
+
+        if not encrypted_conversation:
+            return
+
+        key = self.get_key()
+        conversation_string = self.decrypt_conversation(encrypted_conversation, key)
+        root = ET.fromstring(conversation_string)
+
+        last_message = root.findall('message')[-1]
+        self.display_message(last_message)
+
+        print("Ieșit din display_new_message")
+
     def add_message_to_display(self, sender, day, hour, content):
-        self.num_messages_added += 1
+        # self.num_messages_added += 1
+        print("     un mesaj gasit: sender:", sender, "day:", day, "hour:", hour, "content:", content)
 
         if sender == user.username:
             message_str = f'{content} : {hour}'
         else:
-            message_str = f'{hour} : {content}\n'
+            message_str = f'{hour} : {content}'
 
         # Creați un nou QListWidgetItem cu mesajul
         item = QListWidgetItem(message_str)
@@ -662,15 +702,13 @@ class ConversationWindow(QWidget):
         encrypted_message = cipher_suite.encrypt(conversation_string)
         write_to_file(log_filename, encrypted_message)
 
-        # self.num_messages_added += 1
-        self.add_message_to_display(sender, day, hour, message_content)
-
         # Sterge mesajul din widget-ul de introducere a mesajelor
         self.message_entry.clear()
         if hasattr(self, 'image_filename'):
             del self.image_filename
 
     def back(self):
+        self.timer.stop()
         self.showHomeWindow.emit()
         self.hide()
 
@@ -691,6 +729,54 @@ class ConversationWindow(QWidget):
         # Golirea afișajului de mesaje
         self.message_display.clear()
 
+
+    class MyClass:
+        def __init__(self, log_filename, window):
+            self.log_filename = log_filename
+            self.window = window
+            self.last_modified = os.path.getmtime(log_filename)
+
+        def verify_is_modified(self):
+            current_modified = os.path.getmtime(self.log_filename)
+            if current_modified != self.last_modified:
+                print(f'Fișierul {self.log_filename} a fost modificat!')
+
+                self.window.display_new_message(self.log_filename)
+
+                self.last_modified = current_modified
+
+    # class FileMonitor:
+    #     def __init__(self, filename, callback):
+    #         self.filename = filename
+    #         self.callback = callback
+    #         self.last_modified = os.path.getmtime(filename)
+
+    #     def start_monitoring(self):
+    #         while True:
+    #             time.sleep(1)  # așteptați un timp înainte de a verifica din nou
+    #             modified = os.path.getmtime(self.filename)
+    #             if modified != self.last_modified:
+    #                 self.callback(self.filename)
+    #                 self.last_modified = modified
+    
+    # def my_callback(filename):
+    #     print(f'Fișierul {filename} a fost modificat!')
+
+    # class FileChangeHandler(FileSystemEventHandler):
+    #     def __init__(self, callback):
+    #         self.callback = callback
+    #         print("am intrat in init FileSystemEventHandler")
+
+    #     def on_modified(self, event):
+    #         print(f'Fișierul {event.src_path} a fost modificat!')
+    #         self.callback(event.src_path)
+
+    # def start_monitoring(self, filename, callback):
+    #     event_handler = self.FileChangeHandler(callback)
+    #     self.observer = Observer()
+    #     self.observer.schedule(event_handler, path=filename, recursive=False)
+    #     self.observer.start()
+    #     print("am inceput monitorizare pt fisierul", filename)
 
 def write_to_file(filename, data):
     # Obținerea semaforului
