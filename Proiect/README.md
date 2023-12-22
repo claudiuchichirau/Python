@@ -4,8 +4,8 @@ QuickChat is a client-server application that enables communication between two 
 **The presentation video of the project**: https://www.youtube.com/watch?v=igPTQ-ZWcQI
 
 ## Technologies Used
-- Programming Language: The application is developed in [specify the programming language, e.g., Python].
-- Database: [PostgreSQL] is utilized for data storage, with three main tables:
+- Programming Language: The application is developed in Python.
+- Database: PostgreSQL is utilized for data storage, with three main tables:
   - **users**: Stores usernames and encrypted passwords of users, using a salt generated at account creation.
   - **salt_storage**: Contains information about the salts associated with each user for password encryption.
   - **encryption_keys**: Holds encryption/decryption keys for conversations between two users.
