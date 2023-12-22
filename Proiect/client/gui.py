@@ -7,8 +7,8 @@ import binascii
 import os
 import time
 import xml.etree.ElementTree as ET
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox, QDesktopWidget, QSpacerItem, QSizePolicy, QTextEdit, QListWidgetItem, QListWidget, QHBoxLayout, QFileDialog, QMenu, QAction
-from PyQt5.QtCore import pyqtSignal, Qt, QUrl, QByteArray, QEventLoop, QTimer, QSize
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QMessageBox, QDesktopWidget, QSpacerItem, QSizePolicy, QTextEdit, QListWidgetItem, QListWidget, QHBoxLayout, QFileDialog, QMenu, QAction, QToolButton
+from PyQt5.QtCore import pyqtSignal, Qt, QUrl, QByteArray, QEventLoop, QTimer, QSize, QPoint
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from PyQt5.QtGui import QFont, QColor, QPixmap
 from cryptography.fernet import Fernet
@@ -127,6 +127,9 @@ class LoginWindow(QWidget):
             
             # Conectează slot-ul de răspuns la cerere
             reply.finished.connect(self.handle_authentication_response)
+        
+        self.entry_username.setText('')
+        self.entry_password.setText('')
     
     def handle_authentication_response(self):
         reply = self.sender()
@@ -252,6 +255,7 @@ class RegistrationWindow(QWidget):
 
 class HomeWindow(QWidget):
     showConversationWindow = pyqtSignal()
+    showLoginWindow = pyqtSignal()
 
     def __init__(self, conversation_window):
         super().__init__()
@@ -264,9 +268,21 @@ class HomeWindow(QWidget):
         self.resize(window_width, window_height)
 
         self.setWindowTitle("QuickChat - Home")
-        self.layout = QVBoxLayout()
+        
+        if self.layout is not None:
+            if isinstance(self.layout, QVBoxLayout):
+                while self.layout.count():
+                    child = self.layout.takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+            else:
+                self.layout = QVBoxLayout()
+        else:
+            self.layout = QVBoxLayout()
         
         self.layout.addSpacing(120)
+
+        print("username:", user.username, "\n")
 
         self.label_welcome = QLabel(f"Welcome, {user.username}!")  # Adaugă mesajul de bun venit
         self.label_welcome.setFont(QFont('Times', 18))  # Schimbă fontul și dimensiunea textului
@@ -292,12 +308,17 @@ class HomeWindow(QWidget):
         self.layout.addWidget(self.entry_username)
         self.layout.addWidget(self.button_start_conversation)
 
+        self.button_logout = QPushButton("Logout")  # Adăugați un nou buton pentru logout
+        self.button_logout.clicked.connect(self.logout)  # Conectați semnalul clicked la metoda de logout
+        self.layout.addWidget(self.button_logout)  # Adăugați butonul la layout
+
         self.layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))  # Adaugă spațiere în partea de jos
 
         self.setLayout(self.layout)
 
     def start_conversation(self):
         username = self.entry_username.text()
+        print("Start conversation with: ", username, "\n")
 
         if not username:
             QMessageBox.critical(self, "Error", "Username field must be filled in!")
@@ -337,6 +358,11 @@ class HomeWindow(QWidget):
         else:
             QMessageBox.critical(self, "Error", message)
 
+    def logout(self):
+        user.logout()
+        self.showLoginWindow.emit()
+        self.hide()
+
 class ConversationWindow(QWidget):
     key_received = pyqtSignal()
     showHomeWindow = pyqtSignal()
@@ -360,7 +386,17 @@ class ConversationWindow(QWidget):
 
         self.setWindowTitle(f"QuickChat - Conversation with {user.conversation_partner}")
 
-        self.layout = QVBoxLayout()
+        if self.layout is not None:
+            if isinstance(self.layout, QVBoxLayout):
+                while self.layout.count():
+                    child = self.layout.takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+            else:
+                self.layout = QVBoxLayout()
+        else:
+            self.layout = QVBoxLayout()
+
 
         # Creați un QHBoxLayout pentru butoane
         button_layout = QHBoxLayout()
@@ -385,6 +421,7 @@ class ConversationWindow(QWidget):
         self.message_display = QListWidget()
         # self.message_display.setReadOnly(True)
         self.layout.addWidget(self.message_display)
+        self.message_display.clear()
 
         # Adăugați un widget de introducere a mesajelor
         self.message_entry = QLineEdit()
@@ -392,28 +429,37 @@ class ConversationWindow(QWidget):
 
         # Creați un nou QPushButton pentru emoji-uri
         self.button_emoji = QPushButton("Emoji")
-        self.layout.addWidget(self.button_emoji)
+        # self.layout.addWidget(self.button_emoji)
+        self.button_emoji.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
 
         # Creați un QMenu pentru a afișa emoji-urile
         self.emoji_menu = QMenu(self)
 
         # Adăugați câteva emoji-uri în meniu
-        for emoji in ['😀', '😃', '😄', '😁', '😆', '😅', '😂']:
+        for emoji in ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '😍', '😘', '😗', '😚', '😙', '😋', '😛', '😜', '😝', '🤑', '🤗', '🤓', '😎', '🤡', '🤠', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '😤', '😠', '😡', '😶', '😐', '😑', '😯', '😦', '😧', '😮', '😲', '😵', '😳', '😱', '😨', '😰', '😢', '😥', '🤤', '😭', '😓', '😪', '😴', '🙄', '🤔', '🤥', '😬', '🤐', '🤢', '🤧', '😷', '🤒', '🤕', '😈', '👿', '👹', '👺', '💩', '👻', '💀', '☠️', '👽', '👾', '🤖', '🎃', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾']:
             action = QAction(emoji, self)
             action.triggered.connect(lambda checked, e=emoji: self.insert_emoji(e))
             self.emoji_menu.addAction(action)
 
         # Conectați butonul de emoji-uri la meniul de emoji-uri
-        self.button_emoji.clicked.connect(self.emoji_menu.exec_)
+        self.button_emoji.clicked.connect(lambda: self.emoji_menu.popup(self.button_emoji.mapToGlobal(QPoint(0,0))))
 
         # Definește butonul de trimitere a mesajelor
         self.button_start_conversation = QPushButton("Send")
         self.button_start_conversation.setEnabled(False)  # Dezactivează butonul inițial
         self.button_start_conversation.clicked.connect(partial(self.send_message, f'logs/{log_filename}'))
+        self.button_start_conversation.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         # Activează butonul de trimitere atunci când există text în widget-ul de introducere a mesajelor
         self.message_entry.textChanged.connect(lambda: self.button_start_conversation.setEnabled(bool(self.message_entry.text())))
-        self.layout.addWidget(self.button_start_conversation)
+        # self.layout.addWidget(self.button_start_conversation)
+
+        # Creați un QHBoxLayout pentru a pune butoanele pe același rând
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.button_start_conversation)
+        button_layout.addWidget(self.button_emoji)
+
+        self.layout.addLayout(button_layout)
 
         self.button_upload_image = QPushButton("Upload Image")
         self.button_upload_image.clicked.connect(partial(self.upload_image, f'logs/{log_filename}'))
@@ -423,8 +469,7 @@ class ConversationWindow(QWidget):
 
         # creare fisier log / incarcare mesaje din fisier /
         if not os.path.exists(f'logs/{log_filename}'):
-            print("fis nu exista")
-
+            print("Creaza fisier log:", f'logs/{log_filename}')
             with open(f'logs/{log_filename}', 'w') as f:
                 pass
 
@@ -446,7 +491,7 @@ class ConversationWindow(QWidget):
             # Conectează slot-ul de răspuns la cerere
             reply.finished.connect(partial(self.handle_create_key, log_filename))
         else:
-            print("fis exista")
+            print("Incarca mesaje din fisier:", f'logs/{log_filename}')
             self.load_messages_from_xml(f'logs/{log_filename}')
 
         self.my_class_instance = ConversationWindow.MyClass(f'logs/{log_filename}', self)
@@ -472,7 +517,6 @@ class ConversationWindow(QWidget):
         message = response_data.get('message', '')
 
         if message == "Key stored successfully!":
-            ##### PUNEM UN MESAJ DE TEST IN FISIER
 
             # Obtine numele de utilizator si ora curenta
             sender = user.username
@@ -503,7 +547,6 @@ class ConversationWindow(QWidget):
         self.loop = QEventLoop()
         reply.finished.connect(self.handle_get_key)
         self.loop.exec_()  # start the event loop
-        # print("1. Key received:", self.key)
         return self.key
 
     def handle_get_key(self):
@@ -523,73 +566,13 @@ class ConversationWindow(QWidget):
             else:
                 message = response_data['message']
                 QMessageBox.critical(self, "Error", message)
-        # else:
-        #     print("No response received.")
-
-
-        # if 'key' in response_data:
-        #     self.key = response_data.get('key', '') 
-        #     self.key_received.emit()  # emit the signal
-
-        # else:
-        #     QMessageBox.critical(self, "Error", message)
-
-    # def load_messages_from_xml(self, filename):
-    #     print("am intrat in load, self.num_messages_added:", self.num_messages_added)
-    #     # Citirea conversatiei criptate din fisierul log
-    #     encrypted_conversation = read_from_file(filename)
-
-    #     # obtine cheia de decriptare din db
-    #     key = self.get_key()
-
-    #     # Decriptarea conversatiei
-    #     cipher_suite = Fernet(key)
-    #     conversation_string = cipher_suite.decrypt(encrypted_conversation).decode('utf-8')
-
-    #     # Incarca XML-ul existent din string-ul decriptat
-    #     root = ET.fromstring(conversation_string)
-
-    #     # Daca fisierul este gol sau contine doar elementul root, afiseaza un mesaj si iesi din functie
-    #     if not encrypted_conversation or not list(root):
-    #         self.message_display.clear()
-    #         self.message_display.addItem("There is no conversation so far.")
-    #         return
-
-    #     # Parcurgeți fiecare mesaj din fișierul XML
-    #     for i, message in enumerate(root.findall('message')):
-    #         # Daca acesta este un mesaj nou, adauga-l la afisaj
-    #         if i >= self.num_messages_added:
-    #             sender = message.find('sender').text
-    #             day = message.find('day').text
-    #             hour = message.find('hour').text
-    #             content = message.find('content').text
-
-    #             if sender is not None and day is not None and hour is not None and content is not None:
-    #                 try:
-    #                     # Încercați să decodați conținutul din Base64
-    #                     decoded_image = base64.b64decode(content)
-    #                     # Creați un QPixmap din datele imaginii decodate
-    #                     pixmap = QPixmap()
-    #                     pixmap.loadFromData(decoded_image)
-    #                     # Creați un QLabel pentru a afișa QPixmap
-    #                     label = QLabel()
-    #                     label.setPixmap(pixmap)
-    #                     # Creați un QListWidgetItem și setați QLabel ca widget personalizat
-    #                     item = QListWidgetItem(self.message_display)
-    #                     self.message_display.setItemWidget(item, label)
-    #                 except Exception:
-    #                     # Dacă decodarea nu reușește, tratați conținutul ca text
-    #                     self.add_message_to_display(sender, day, hour, content)
-
-    #     print("am iesit din load")
 
     def load_messages_from_xml(self, filename):
-        logging.info("Intrat în load, self.num_messages_added:")
-        print("Intrat în load")
+        self.message_display.clear()
+
         encrypted_conversation = read_from_file(filename)
 
         if not encrypted_conversation:
-            self.message_display.clear()
             self.message_display.addItem("There is no conversation so far.")
             return
 
@@ -600,53 +583,53 @@ class ConversationWindow(QWidget):
         for i, message in enumerate(root.findall('message')):
             content = message.find('content').text
             sender = message.find('sender').text  # Obțineți numele expeditorului
-            try:
-                decoded_image = base64.b64decode(content)
-                pixmap = QPixmap()
-                pixmap.loadFromData(decoded_image)
-                image_label = QLabel()  # QLabel pentru imagine
+            if content.startswith("iVBORw0KG") or content.startswith("/9j/"):
+                try:
+                    decoded_image = base64.b64decode(content)
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(decoded_image)
+                    image_label = QLabel()  # QLabel pentru imagine
 
-                # Setează dimensiunea maximă a imaginii în pixeli
-                max_width = 500  # Lățimea maximă în pixeli
-                max_height = 300  # Înălțimea maximă în pixeli
-                max_size = QSize(max_width, max_height)
+                    # Setează dimensiunea maximă a imaginii în pixeli
+                    max_width = 500  # Lățimea maximă în pixeli
+                    max_height = 300  # Înălțimea maximă în pixeli
+                    max_size = QSize(max_width, max_height)
 
-                # Redimensionează imaginea la dimensiunea maximă specificată
-                pixmap = pixmap.scaled(max_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    # Redimensionează imaginea la dimensiunea maximă specificată
+                    pixmap = pixmap.scaled(max_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
-                image_label.setPixmap(pixmap)
-                image_label.setScaledContents(True)  # Permit redimensionarea imaginii
+                    image_label.setPixmap(pixmap)
+                    image_label.setScaledContents(True)  # Permit redimensionarea imaginii
 
-                # Creați un nou QLabel pentru numele expeditorului
-                sender_label = QLabel(f"{sender}'s image:")
-                if sender == user.username:
-                    sender_label.setAlignment(Qt.AlignRight)
-                else:
-                    sender_label.setAlignment(Qt.AlignLeft)
+                    # Creați un nou QLabel pentru numele expeditorului
+                    sender_label = QLabel(f"{sender}'s image:")
+                    if sender == user.username:
+                        sender_label.setAlignment(Qt.AlignRight)
+                    else:
+                        sender_label.setAlignment(Qt.AlignLeft)
 
 
-                # Creați un QVBoxLayout și adăugați ambele QLabel-uri
-                layout = QVBoxLayout()
-                layout.addWidget(sender_label)
-                layout.addWidget(image_label)
+                    # Creați un QVBoxLayout și adăugați ambele QLabel-uri
+                    layout = QVBoxLayout()
+                    layout.addWidget(sender_label)
+                    layout.addWidget(image_label)
 
-                # Creați un QWidget pentru a conține QVBoxLayout
-                widget = QWidget()
-                widget.setLayout(layout)
+                    # Creați un QWidget pentru a conține QVBoxLayout
+                    widget = QWidget()
+                    widget.setLayout(layout)
 
-                # Setează dimensiunea elementului la dimensiunea widget-ului
-                item = QListWidgetItem(self.message_display)
-                item.setSizeHint(widget.sizeHint())
+                    # Setează dimensiunea elementului la dimensiunea widget-ului
+                    item = QListWidgetItem(self.message_display)
+                    item.setSizeHint(widget.sizeHint())
 
-                # Adăugați widget-ul la QListWidgetItem
-                self.message_display.setItemWidget(item, widget)
-            except binascii.Error:
+                    # Adăugați widget-ul la QListWidgetItem
+                    self.message_display.setItemWidget(item, widget)
+                except binascii.Error:
+                    self.display_message(message)
+            else:
                 self.display_message(message)
 
         self.message_display.scrollToBottom()
-
-        logging.info("Ieșit din load")
-        print("Ieșit din load")
 
     def decrypt_conversation(self, encrypted_conversation, key):
         cipher_suite = Fernet(key)
@@ -665,53 +648,55 @@ class ConversationWindow(QWidget):
             self.message_display.setItemWidget(date_item, date_label)
 
         if sender and day and hour and content:
-            try:
-                decoded_image = base64.b64decode(content)
-                pixmap = QPixmap()
-                pixmap.loadFromData(decoded_image)
-                image_label = QLabel()  # QLabel pentru imagine
+            if content.startswith("iVBORw0KG") or content.startswith("/9j/"):
+                try:
+                    decoded_image = base64.b64decode(content)
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(decoded_image)
+                    image_label = QLabel()  # QLabel pentru imagine
 
-                # Setează dimensiunea maximă a imaginii în pixeli
-                max_width = 500  # Lățimea maximă în pixeli
-                max_height = 300  # Înălțimea maximă în pixeli
-                max_size = QSize(max_width, max_height)
+                    # Setează dimensiunea maximă a imaginii în pixeli
+                    max_width = 500  # Lățimea maximă în pixeli
+                    max_height = 300  # Înălțimea maximă în pixeli
+                    max_size = QSize(max_width, max_height)
 
-                # Redimensionează imaginea la dimensiunea maximă specificată
-                pixmap = pixmap.scaled(max_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    # Redimensionează imaginea la dimensiunea maximă specificată
+                    pixmap = pixmap.scaled(max_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
-                image_label.setPixmap(pixmap)
-                image_label.setScaledContents(True)  # Permit redimensionarea imaginii
+                    image_label.setPixmap(pixmap)
+                    image_label.setScaledContents(True)  # Permit redimensionarea imaginii
 
-                # Creați un nou QLabel pentru numele expeditorului
-                sender_label = QLabel(f"{sender}'s image:")
-                if sender == user.username:
-                    sender_label.setAlignment(Qt.AlignRight)
-                else:
-                    sender_label.setAlignment(Qt.AlignLeft)
+                    # Creați un nou QLabel pentru numele expeditorului
+                    sender_label = QLabel(f"{sender}'s image:")
+                    if sender == user.username:
+                        sender_label.setAlignment(Qt.AlignRight)
+                    else:
+                        sender_label.setAlignment(Qt.AlignLeft)
 
 
-                # Creați un QVBoxLayout și adăugați ambele QLabel-uri
-                layout = QVBoxLayout()
-                layout.addWidget(sender_label)
-                layout.addWidget(image_label)
+                    # Creați un QVBoxLayout și adăugați ambele QLabel-uri
+                    layout = QVBoxLayout()
+                    layout.addWidget(sender_label)
+                    layout.addWidget(image_label)
 
-                # Creați un QWidget pentru a conține QVBoxLayout
-                widget = QWidget()
-                widget.setLayout(layout)
+                    # Creați un QWidget pentru a conține QVBoxLayout
+                    widget = QWidget()
+                    widget.setLayout(layout)
 
-                # Setează dimensiunea elementului la dimensiunea widget-ului
-                item = QListWidgetItem(self.message_display)
-                item.setSizeHint(widget.sizeHint())
+                    # Setează dimensiunea elementului la dimensiunea widget-ului
+                    item = QListWidgetItem(self.message_display)
+                    item.setSizeHint(widget.sizeHint())
 
-                # Adăugați widget-ul la QListWidgetItem
-                self.message_display.setItemWidget(item, widget)
-            except binascii.Error:
+                    # Adăugați widget-ul la QListWidgetItem
+                    self.message_display.setItemWidget(item, widget)
+                except binascii.Error:
+                    self.add_message_to_display(sender, day, hour, content)
+            else:
                 self.add_message_to_display(sender, day, hour, content)
 
         self.last_sent_date = message.find('day').text
 
     def display_new_message(self, filename):
-        print("Intrat în display_new_message")
         encrypted_conversation = read_from_file(filename)
 
         if not encrypted_conversation:
@@ -721,15 +706,12 @@ class ConversationWindow(QWidget):
         conversation_string = self.decrypt_conversation(encrypted_conversation, key)
         root = ET.fromstring(conversation_string)
 
-        last_message = root.findall('message')[-1]
-        self.display_message(last_message)
-
-        print("Ieșit din display_new_message")
+        last_message = root.findall('message')
+        if last_message:  # Verifica daca exista un ultim mesaj
+            last_message = last_message[-1]
+            self.display_message(last_message)
 
     def add_message_to_display(self, sender, day, hour, content):
-        # self.num_messages_added += 1
-        print("     un mesaj gasit: sender:", sender, "day:", day, "hour:", hour, "content:", content)
-
         if sender == user.username:
             message_str = f'{content} : {hour}'
         else:
@@ -805,9 +787,12 @@ class ConversationWindow(QWidget):
     def back(self):
         self.timer.stop()
         self.showHomeWindow.emit()
+
         self.hide()
 
     def delete_conversation(self, filename):
+        print("Sterge conversatia")
+
         # Crearea unui șir XML gol cu doar elementul rădăcină
         empty_conversation_string = "<conversation></conversation>"
 
@@ -824,6 +809,7 @@ class ConversationWindow(QWidget):
         # Golirea afișajului de mesaje
         self.message_display.clear()
 
+        print("Conversatia a fost stearsa")
 
     class MyClass:
         def __init__(self, log_filename, window):
@@ -834,8 +820,6 @@ class ConversationWindow(QWidget):
         def verify_is_modified(self):
             current_modified = os.path.getmtime(self.log_filename)
             if current_modified != self.last_modified:
-                print(f'Fișierul {self.log_filename} a fost modificat!')
-
                 self.window.display_new_message(self.log_filename)
 
                 self.last_modified = current_modified
@@ -891,6 +875,7 @@ def start_application():
     login_window.showHomeWindow.connect(home_window.show)
     registration_window.showLoginWindow.connect(login_window.show)
     home_window.showConversationWindow.connect(conversation_window.show)
+    home_window.showLoginWindow.connect(login_window.show)
     conversation_window.showHomeWindow.connect(home_window.show)
 
     login_window.show()
