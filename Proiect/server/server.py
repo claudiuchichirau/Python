@@ -8,16 +8,28 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 class Password(db.Model):
+    """
+    This class represents the Password table in the database.
+    """
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     salt = db.Column(db.String(100), nullable=False)
 
 class Users(db.Model):
+    """
+    This class represents the Users table in the database.
+    """
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), db.ForeignKey('password.username'), nullable=False)
     password = db.Column(db.String(100), nullable=False)
 
 class ConversationKey(db.Model):
+    """
+    This class represents the ConversationKey table in the database.
+    """
+
     id = db.Column(db.Integer, primary_key=True)
     user1_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     user2_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)

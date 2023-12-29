@@ -18,34 +18,70 @@ from functools import partial
 from threading import Semaphore
 
 class User:
+    """
+    This is a class for managing a user in a chat application.
+    """
+
     def __init__(self):
+        """
+        The constructor for User class.
+        """
         self.username = None
         self.is_authenticated = False
         self.conversation_partner = None
 
     def login(self, username):
+        """
+        Log in a user.
+
+        Parameters:
+        username (str): The username of the user.
+        """
         self.username = username
         self.is_authenticated = True
 
     def logout(self):
+        """
+        Log out a user.
+        """
         self.username = None
         self.is_authenticated = False
         self.conversation_partner = None
     
     def start_conversation(self, partner_username):
+        """
+        Start a conversation with another user.
+
+        Parameters:
+        partner_username (str): The username of the conversation partner.
+        """
         self.conversation_partner = partner_username  # Stocarea numelui de utilizator al partenerului de conversație
 
     def end_conversation(self):
+        """
+        End the current conversation.
+        """
         self.conversation_partner = None  # Ștergerea numelui de utilizator al partenerului
 
 user = User()
 sem = Semaphore()
 
 class LoginWindow(QWidget):
+    """
+    This is a class for managing the login window of the application.
+    """
+
     showRegistrationWindow = pyqtSignal()
     showHomeWindow = pyqtSignal()
 
     def __init__(self, home_window):
+        """
+        The constructor for LoginWindow class.
+
+        Parameters:
+        home_window (QWidget): The home window of the application.
+        """
+
         super().__init__()
         self.home_window = home_window
 
@@ -103,6 +139,10 @@ class LoginWindow(QWidget):
         self.setLayout(self.layout)
 
     def authenticate_user(self):
+        """
+        Authenticate the user with the entered username and password.
+        """
+
         username = self.entry_username.text()
         password = self.entry_password.text()
 
@@ -132,6 +172,10 @@ class LoginWindow(QWidget):
         self.entry_password.setText('')
     
     def handle_authentication_response(self):
+        """
+        Handle the response from the authentication request.
+        """
+
         reply = self.sender()
         response_data = json.loads(reply.readAll().data().decode('utf-8'))
         message = response_data.get('message', '')
@@ -148,13 +192,25 @@ class LoginWindow(QWidget):
             QMessageBox.critical(self, "Error", message)
 
     def show_registration_window(self):
+        """
+        Show the registration window.
+        """
+
         self.showRegistrationWindow.emit()
         self.hide()
 
 class RegistrationWindow(QWidget):
+    """
+    This is a class for managing the registration window of the application.
+    """
+
     showLoginWindow = pyqtSignal()
 
     def __init__(self):
+        """
+        The constructor for RegistrationWindow class.
+        """
+
         super().__init__()
 
         window_width = 600
@@ -205,6 +261,9 @@ class RegistrationWindow(QWidget):
         self.setLayout(self.layout)
     
     def create_account(self):
+        """
+        Create a new account with the entered username and password.
+        """
 
         username = self.entry_username.text()
         password = self.entry_password.text()
@@ -237,6 +296,10 @@ class RegistrationWindow(QWidget):
             reply.finished.connect(self.handle_create_account_response)
 
     def handle_create_account_response(self):
+        """
+        Handle the response from the account creation request.
+        """
+
         reply = self.sender()
         response_data = json.loads(reply.readAll().data().decode('utf-8'))
         message = response_data.get('message', '')
@@ -250,18 +313,36 @@ class RegistrationWindow(QWidget):
             QMessageBox.critical(self, "Error", message)
 
     def show_login_window(self):
+        """
+        Show the login window.
+        """
+
         self.showLoginWindow.emit()
         self.hide()
 
 class HomeWindow(QWidget):
+    """
+    This is a class for managing the home window of the application.
+    """
+
     showConversationWindow = pyqtSignal()
     showLoginWindow = pyqtSignal()
 
     def __init__(self, conversation_window):
+        """
+        The constructor for HomeWindow class.
+
+        Parameters:
+        conversation_window (QWidget): The conversation window of the application.
+        """
+
         super().__init__()
         self.conversation_window = conversation_window
 
     def check_user(self):
+        """
+        Check the user and update the home window accordingly.
+        """
        
         window_width = 600
         window_height = 700
@@ -317,6 +398,10 @@ class HomeWindow(QWidget):
         self.setLayout(self.layout)
 
     def start_conversation(self):
+        """
+        Start a conversation with the user entered in the username field.
+        """
+
         username = self.entry_username.text()
         print("Start conversation with: ", username, "\n")
 
@@ -343,6 +428,10 @@ class HomeWindow(QWidget):
             reply.finished.connect(self.handle_conversation_response)
 
     def handle_conversation_response(self):
+        """
+        Handle the response from the conversation start request.
+        """
+
         reply = self.sender()
         response_data = json.loads(reply.readAll().data().decode('utf-8'))
         message = response_data.get('message', '')
@@ -359,21 +448,38 @@ class HomeWindow(QWidget):
             QMessageBox.critical(self, "Error", message)
 
     def logout(self):
+        """
+        Log out the current user and show the login window.
+        """
+
         user.logout()
         self.showLoginWindow.emit()
         self.hide()
 
 class ConversationWindow(QWidget):
+    """
+    This is a class for managing the conversation window of the application.
+    """
+
     key_received = pyqtSignal()
     showHomeWindow = pyqtSignal()
 
     def __init__(self):
+        """
+        The constructor for ConversationWindow class.
+        """
+
         super().__init__()
         self.key = None 
         self.last_sent_date = None
         self.message_display = QListWidget()
 
     def conversation(self):
+        """
+        This method sets up the conversation window, including the layout, buttons, and message display.
+        It also handles the creation and loading of log files for the conversation.
+        """
+
         sorted_usernames = sorted([user.username, user.conversation_partner])
 
         # Generează numele fișierului
@@ -500,9 +606,23 @@ class ConversationWindow(QWidget):
         self.timer.start(1000)  # timpul este în milisecund
 
     def insert_emoji(self, emoji):
+        """
+        This method inserts the selected emoji into the message entry field.
+
+        Parameters:
+        emoji (str): The emoji to be inserted.
+        """
+
         self.message_entry.insert(emoji)
 
     def upload_image(self, log_filename):
+        """
+        This method opens a dialog to select an image file, and saves the path to the selected file.
+
+        Parameters:
+        log_filename (str): The filename of the log file for the current conversation.
+        """
+
         # Deschideți un dialog pentru a selecta fișierul imagine
         image_filename, _ = QFileDialog.getOpenFileName()
 
@@ -512,6 +632,13 @@ class ConversationWindow(QWidget):
             self.send_message(log_filename)
 
     def handle_create_key(self, log_filename):
+        """
+        This method handles the creation of a new encryption key.
+
+        Parameters:
+        log_filename (str): The filename of the log file for the current conversation.
+        """
+
         reply = self.sender()
         response_data = json.loads(reply.readAll().data().decode('utf-8'))
         message = response_data.get('message', '')
@@ -536,6 +663,10 @@ class ConversationWindow(QWidget):
             QMessageBox.critical(self, "Error", message)
 
     def get_key(self):
+        """
+        This method sends a request to the server to get the encryption key for the current conversation.
+        """
+
         network_manager = QNetworkAccessManager(self)
         url = QUrl("http://localhost:5000/get_key")
         request = QNetworkRequest(url)
@@ -550,6 +681,10 @@ class ConversationWindow(QWidget):
         return self.key
 
     def handle_get_key(self):
+        """
+        This method handles the response from the get_key request.
+        """
+
         reply = self.sender()
         response_str = reply.readAll().data().decode('utf-8')
 
@@ -568,6 +703,13 @@ class ConversationWindow(QWidget):
                 QMessageBox.critical(self, "Error", message)
 
     def load_messages_from_xml(self, filename):
+        """
+        This method loads the messages from the XML file of the current conversation.
+
+        Parameters:
+        filename (str): The filename of the XML file for the current conversation.
+        """
+
         self.message_display.clear()
 
         encrypted_conversation = read_from_file(filename)
@@ -632,10 +774,28 @@ class ConversationWindow(QWidget):
         self.message_display.scrollToBottom()
 
     def decrypt_conversation(self, encrypted_conversation, key):
+        """
+        This method decrypts the conversation using the provided key.
+
+        Parameters:
+        encrypted_conversation (str): The encrypted conversation to be decrypted.
+        key (str): The key to be used for decryption.
+
+        Returns:
+        str: The decrypted conversation.
+        """
+
         cipher_suite = Fernet(key)
         return cipher_suite.decrypt(encrypted_conversation).decode('utf-8')
 
     def display_message(self, message):
+        """
+        This method displays a message in the conversation window.
+
+        Parameters:
+        message (str): The message to be displayed.
+        """
+
         sender = message.find('sender').text
         day = message.find('day').text
         hour = message.find('hour').text
@@ -697,6 +857,13 @@ class ConversationWindow(QWidget):
         self.last_sent_date = message.find('day').text
 
     def display_new_message(self, filename):
+        """
+        This method displays a new message from the conversation file.
+
+        Parameters:
+        filename (str): The filename of the conversation file.
+        """
+
         encrypted_conversation = read_from_file(filename)
 
         if not encrypted_conversation:
@@ -712,6 +879,16 @@ class ConversationWindow(QWidget):
             self.display_message(last_message)
 
     def add_message_to_display(self, sender, day, hour, content):
+        """
+        This method adds a message to the conversation display.
+
+        Parameters:
+        sender (str): The sender of the message.
+        day (str): The date the message was sent.
+        hour (str): The time the message was sent.
+        content (str): The content of the message.
+        """
+
         if sender == user.username:
             message_str = f'{content} : {hour}'
         else:
@@ -732,6 +909,13 @@ class ConversationWindow(QWidget):
         self.message_display.scrollToBottom()
 
     def send_message(self, log_filename):
+        """
+        This method sends a message and writes it to the conversation log file.
+
+        Parameters:
+        log_filename (str): The filename of the log file.
+        """
+
         # Obtine mesajul din widget-ul de introducere a mesajelor
         message_content = self.message_entry.text()
 
@@ -785,12 +969,23 @@ class ConversationWindow(QWidget):
             del self.image_filename
 
     def back(self):
+        """
+        This method stops the timer, emits the showHomeWindow signal, and hides the current window.
+        """
+
         self.timer.stop()
         self.showHomeWindow.emit()
 
         self.hide()
 
     def delete_conversation(self, filename):
+        """
+        This method deletes the conversation by writing an empty conversation string to the file and clearing the message display.
+
+        Parameters:
+        filename (str): The filename of the conversation file.
+        """
+
         print("Sterge conversatia")
 
         # Crearea unui șir XML gol cu doar elementul rădăcină
@@ -812,12 +1007,28 @@ class ConversationWindow(QWidget):
         print("Conversatia a fost stearsa")
 
     class MyClass:
+        """
+        This class is used to monitor a file and trigger an action when the file is modified.
+        """
+
         def __init__(self, log_filename, window):
+            """
+            The constructor for MyClass.
+
+            Parameters:
+            log_filename (str): The filename of the log file to monitor.
+            window (QWidget): The window that will display the new message when the log file is modified.
+            """
+
             self.log_filename = log_filename
             self.window = window
             self.last_modified = os.path.getmtime(log_filename)
 
         def verify_is_modified(self):
+            """
+            Check if the log file has been modified and display a new message if it has.
+            """
+
             current_modified = os.path.getmtime(self.log_filename)
             if current_modified != self.last_modified:
                 self.window.display_new_message(self.log_filename)
@@ -825,6 +1036,14 @@ class ConversationWindow(QWidget):
                 self.last_modified = current_modified
 
 def write_to_file(filename, data):
+    """
+    Write data to a file.
+
+    Parameters:
+    filename (str): The filename of the file to write to.
+    data (bytes): The data to write to the file.
+    """
+
     # Obținerea semaforului
     with sem:
         try:
@@ -837,6 +1056,16 @@ def write_to_file(filename, data):
             print(f"A apărut o eroare neașteptată: {e}")
 
 def read_from_file(filename):
+    """
+    Read data from a file.
+
+    Parameters:
+    filename (str): The filename of the file to read from.
+
+    Returns:
+    bytes: The data read from the file.
+    """
+
     # Verificarea dacă fișierul există înainte de a încerca să îl citim
     if not os.path.exists(filename):
         print(f"Fișierul {filename} nu există.")
@@ -855,15 +1084,36 @@ def read_from_file(filename):
     return data
 
 class ClickableLabel(QLabel):
+    """
+    A QLabel that emits a signal when clicked.
+    """
+
     clicked = pyqtSignal()
 
     def __init__(self, text=None):
+        """
+        The constructor for ClickableLabel.
+
+        Parameters:
+        text (str): The text to display on the label.
+        """
+
         super().__init__(text)
 
     def mousePressEvent(self, event):
+        """
+        Emit the clicked signal when the mouse button is pressed.
+
+        Parameters:
+        event (QMouseEvent): The mouse press event.
+        """
         self.clicked.emit()
 
 def start_application():
+    """
+    Start the application.
+    """
+
     app = QApplication([])
     registration_window = RegistrationWindow()
     conversation_window = ConversationWindow()

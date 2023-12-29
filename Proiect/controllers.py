@@ -5,6 +5,14 @@ import secrets
 
 
 def create_user():
+    """
+    This function creates a new user with the username and password provided in the request data.
+    It validates the username and password, generates a salt and hashes the password, and then stores the user in the database.
+
+    Returns:
+    A tuple containing a JSON response and a status code. The JSON response contains a message indicating whether the user was created successfully or the username already exists. The status code is 201 if the user was created successfully, or 400 if the username already exists.
+    """
+
     from server.server import db, app, Users, Password
 
     data = request.get_json()
@@ -38,6 +46,14 @@ def create_user():
         return jsonify({'message': 'Username already exists.'}), 400
 
 def authenticate_user():
+    """
+    This function authenticates a user with the username and password provided in the request data.
+    It retrieves the salt for the user, hashes the provided password with the salt, and checks if the hashed password matches the stored password.
+
+    Returns:
+    A tuple containing a JSON response and a status code. The JSON response contains a message indicating whether the user was authenticated successfully or the credentials are invalid. The status code is 200 if the user was authenticated successfully, or 401 if the credentials are invalid.
+    """
+
     from server.server import db, app, Users, Password
 
     data = request.get_json()
@@ -63,6 +79,13 @@ def authenticate_user():
         return jsonify({'message': 'Invalid credentials'}), 404
 
 def check_username():
+    """
+    This function checks if a username exists in the database.
+
+    Returns:
+    A tuple containing a JSON response and a status code. The JSON response contains a message indicating whether the username exists or not. The status code is 200 if the username exists, or 404 if it does not.
+    """
+
     from server.server import db, app, Users
 
     data = request.get_json()
@@ -80,6 +103,13 @@ def check_username():
         return jsonify({'message': 'Username does not exist'}), 404
 
 def store_key():
+    """
+    This function stores a conversation key for two users in the database.
+
+    Returns:
+    A tuple containing a JSON response and a status code. The JSON response contains a message indicating whether the key was stored successfully or the usernames were not found. The status code is 201 if the key was stored successfully, or 404 if one or both usernames were not found.
+    """
+
     from server.server import db, app, Users, Password, ConversationKey
 
     data = request.get_json()
@@ -104,6 +134,13 @@ def store_key():
     return jsonify({'message': 'Key stored successfully!'}), 201
 
 def get_key():
+    """
+    This function retrieves a conversation key for two users from the database.
+
+    Returns:
+    A tuple containing a JSON response and a status code. The JSON response contains the conversation key if it was found, or a message indicating that no key was found. The status code is 200 if the key was found, or 404 if it was not.
+    """
+
     from server.server import db, app, Users, Password, ConversationKey
 
     data = request.get_json()
