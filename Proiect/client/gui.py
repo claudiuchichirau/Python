@@ -575,7 +575,7 @@ class ConversationWindow(QWidget):
 
         # creare fisier log / incarcare mesaje din fisier /
         if not os.path.exists(f'logs/{log_filename}'):
-            print("Creaza fisier log:", f'logs/{log_filename}')
+            # print("Creaza fisier log:", f'logs/{log_filename}')
             with open(f'logs/{log_filename}', 'w') as f:
                 pass
 
@@ -597,7 +597,7 @@ class ConversationWindow(QWidget):
             # Conectează slot-ul de răspuns la cerere
             reply.finished.connect(partial(self.handle_create_key, log_filename))
         else:
-            print("Incarca mesaje din fisier:", f'logs/{log_filename}')
+            # print("Incarca mesaje din fisier:", f'logs/{log_filename}')
             self.load_messages_from_xml(f'logs/{log_filename}')
 
         self.my_class_instance = ConversationWindow.MyClass(f'logs/{log_filename}', self)

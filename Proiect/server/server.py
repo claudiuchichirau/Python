@@ -47,7 +47,4 @@ app.add_url_rule('/get_key', 'get_key', get_key, methods=['POST'])
 
 
 if __name__ == '__main__':
-    # with app.app_context():
-    #     print("s-au creat")
-    #     db.create_all()
     app.run(debug=True)
